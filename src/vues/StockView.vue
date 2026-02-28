@@ -4,7 +4,7 @@
       Liste des Médicaments
     </h2>
 
-    <!-- Barre de recherche -->
+    <!-- Recherche -->
     <div class="d-flex justify-center mb-8">
       <v-text-field
         v-model="recherche"
@@ -19,7 +19,7 @@
       />
     </div>
 
-    <!-- Chargement -->
+    <!-- Indicateur de chargement -->
     <div v-if="enChargement" class="text-center my-10">
       <v-progress-circular indeterminate color="teal" size="50" />
       <p class="text-grey mt-3">Chargement en cours...</p>
@@ -48,7 +48,7 @@
           <p class="text-h6 font-weight-bold mb-1">{{ med.denomination }}</p>
           <p class="text-body-2 text-grey mb-4">{{ med.formepharmaceutique }} 💊</p>
 
-          <!-- Compteur quantité avec boutons +1 / -1 -->
+          <!-- Compteur quantité -->
           <div class="d-flex align-center justify-center ga-4 mb-2">
             <v-btn
               icon="mdi-minus"
@@ -73,7 +73,7 @@
 
           <v-divider class="my-3" />
 
-          <!-- Boutons Modifier / Supprimer -->
+          <!-- Actions -->
           <div class="d-flex justify-center ga-2">
             <v-btn
               :to="'/modifier/' + med.id"
@@ -103,7 +103,7 @@
       </v-col>
     </v-row>
 
-    <!-- Dialog confirmation suppression -->
+    <!-- Boîte de confirmation avant suppression -->
     <v-dialog v-model="dialogVisible" max-width="380">
       <v-card rounded="lg">
         <v-card-title class="pt-5 px-5">Confirmer la suppression</v-card-title>
@@ -128,19 +128,19 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { recupererTous, mettreAJour, effacer } from '@/Services/medicaments.js'
+import { recupererTous, mettreAJour, effacer } from '@/services/medicaments.js'
 import config from '@/config.js'
 
-const listeMedicaments = ref([])
-const recherche        = ref('')
-const enChargement     = ref(true)
-const dialogVisible    = ref(false)
-const medicamentChoisi = ref(null)
-const notifVisible     = ref(false)
-const notifTexte       = ref('')
-const notifCouleur     = ref('success')
+const listeMedicaments  = ref([])
+const recherche         = ref('')
+const enChargement      = ref(true)
+const dialogVisible     = ref(false)
+const medicamentChoisi  = ref(null)
+const notifVisible      = ref(false)
+const notifTexte        = ref('')
+const notifCouleur      = ref('success')
 
-// Filtre la liste selon la recherche
+// Filtre les médicaments selon la barre de recherche
 const listeFiltrée = computed(() => {
   if (!recherche.value) return listeMedicaments.value
   const terme = recherche.value.toLowerCase()
@@ -150,7 +150,7 @@ const listeFiltrée = computed(() => {
   )
 })
 
-// Charger tous les médicaments au démarrage
+// Charger la liste depuis l'API
 function chargerListe() {
   enChargement.value = true
   recupererTous()
@@ -164,7 +164,7 @@ function chargerListe() {
     })
 }
 
-// +1 au stock — ID dans le body JSON
+// +1 au stock
 function ajouterUnite(med) {
   mettreAJour({ id: med.id, qte: med.qte + 1 })
     .then(() => {
@@ -174,7 +174,7 @@ function ajouterUnite(med) {
     .catch(err => console.error(err))
 }
 
-// -1 au stock — ID dans le body JSON
+// -1 au stock
 function enleverUnite(med) {
   if (med.qte <= 0) return
   mettreAJour({ id: med.id, qte: med.qte - 1 })
@@ -185,11 +185,13 @@ function enleverUnite(med) {
     .catch(err => console.error(err))
 }
 
+// Ouvrir le dialog de confirmation
 function demanderSuppression(med) {
   medicamentChoisi.value = med
   dialogVisible.value    = true
 }
 
+// Supprimer après confirmation
 function validerSuppression() {
   const id = medicamentChoisi.value.id
   effacer(id)
