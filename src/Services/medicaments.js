@@ -1,39 +1,31 @@
 // services/medicaments.js
-// Toutes les fonctions qui communiquent avec l'API sont ici
-// Comme ça mes pages restent propres et lisibles
+// Utilise config.apiUrl qui passe par le proxy Vite
 
 import config from '@/config.js'
 
-// Récupérer tous les médicaments
 export function recupererTous() {
   return fetch(config.apiUrl)
-    .then(reponse => reponse.json())
+    .then(r => r.json())
+    .then(data => data._embedded?.medicaments ?? [])
 }
 
-// Ajouter un nouveau médicament
 export function creerMedicament(donnees) {
   return fetch(config.apiUrl, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(donnees)
-  })
-    .then(reponse => reponse.json())
+    body: JSON.stringify(donnees)
+  }).then(r => r.json())
 }
 
-// Modifier un médicament existant (l'ID est dans le body)
-export function mettreAJour(donnees) {
-  return fetch(config.apiUrl, {
-    method:  'PUT',
+// selfUrl = med._links.self.href (URL complète de Render)
+export function mettreAJour(selfUrl, donnees) {
+  return fetch(selfUrl, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(donnees)
-  })
-    .then(reponse => reponse.json())
+    body: JSON.stringify(donnees)
+  }).then(r => r.json())
 }
 
-// Supprimer un médicament par son ID
-export function effacer(id) {
-  return fetch(config.apiUrl + '/' + id, {
-    method: 'DELETE'
-  })
-    .then(reponse => reponse.json())
+export function effacer(selfUrl) {
+  return fetch(selfUrl, { method: 'DELETE' })
 }

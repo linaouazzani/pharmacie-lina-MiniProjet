@@ -4,7 +4,6 @@
       Liste des Médicaments
     </h2>
 
-    <!-- Barre de recherche -->
     <div class="d-flex justify-center mb-8">
       <v-text-field
         v-model="recherche"
@@ -19,77 +18,54 @@
       />
     </div>
 
-    <!-- Chargement -->
     <div v-if="enChargement" class="text-center my-10">
       <v-progress-circular indeterminate color="teal" size="50" />
       <p class="text-grey mt-3">Chargement en cours...</p>
     </div>
 
-    <!-- Grille de cartes -->
-    <v-row v-else>
+    <v-row v-if="!enChargement">
       <v-col
         v-for="med in listeFiltrée"
-        :key="med.id"
+        :key="med._links.self.href"
         cols="12" sm="6" md="4"
       >
         <v-card rounded="lg" elevation="2" class="pa-4 text-center h-100">
 
-          <!-- Photo -->
           <v-img
-            v-if="med.photo"
-            :src="config.imagesUrl + med.photo"
+            v-if="med.imageURL"
+            :src="med.imageURL"
             height="120"
             contain
             class="mb-3"
           />
           <v-icon v-else icon="mdi-pill" size="70" color="grey-lighten-2" class="mb-3" />
 
-          <!-- Nom et forme -->
-          <p class="text-h6 font-weight-bold mb-1">{{ med.denomination }}</p>
-          <p class="text-body-2 text-grey mb-4">{{ med.formepharmaceutique }} 💊</p>
+          <p class="text-h6 font-weight-bold mb-1">{{ med.nom }}</p>
 
-          <!-- Compteur quantité avec boutons +1 / -1 -->
+          <p v-if="med.prixUnitaire" class="text-body-2 text-teal mb-3">
+            {{ med.prixUnitaire }} €
+          </p>
+
           <div class="d-flex align-center justify-center ga-4 mb-2">
-            <v-btn
-              icon="mdi-minus"
-              variant="tonal"
-              size="small"
-              color="teal"
-              :disabled="med.qte <= 0"
-              @click="enleverUnite(med)"
-            />
+            <v-btn icon="mdi-minus" variant="tonal" size="small" color="teal"
+              :disabled="med.unitesEnStock <= 0" @click="enleverUnite(med)" />
             <div>
-              <div class="text-h5 font-weight-bold">{{ med.qte }}</div>
+              <div class="text-h5 font-weight-bold">{{ med.unitesEnStock }}</div>
               <div class="text-caption text-grey">unités</div>
             </div>
-            <v-btn
-              icon="mdi-plus"
-              variant="tonal"
-              size="small"
-              color="teal"
-              @click="ajouterUnite(med)"
-            />
+            <v-btn icon="mdi-plus" variant="tonal" size="small" color="teal"
+              @click="ajouterUnite(med)" />
           </div>
 
           <v-divider class="my-3" />
 
-          <!-- Boutons Modifier / Supprimer -->
           <div class="d-flex justify-center ga-2">
-            <v-btn
-              :to="'/modifier/' + med.id"
-              color="teal"
-              size="small"
-              prepend-icon="mdi-pencil"
-            >
+            <v-btn :to="'/modifier/' + encoderUrl(med._links.self.href)"
+              color="teal" size="small" prepend-icon="mdi-pencil">
               Modifier
             </v-btn>
-            <v-btn
-              color="teal"
-              variant="outlined"
-              size="small"
-              prepend-icon="mdi-delete"
-              @click="demanderSuppression(med)"
-            >
+            <v-btn color="teal" variant="outlined" size="small" prepend-icon="mdi-delete"
+              @click="demanderSuppression(med)">
               Supprimer
             </v-btn>
           </div>
@@ -97,18 +73,16 @@
         </v-card>
       </v-col>
 
-      <!-- Aucun résultat -->
       <v-col v-if="listeFiltrée.length === 0" cols="12" class="text-center text-grey py-10">
         Aucun médicament trouvé.
       </v-col>
     </v-row>
 
-    <!-- Dialog confirmation suppression -->
     <v-dialog v-model="dialogVisible" max-width="380">
       <v-card rounded="lg">
         <v-card-title class="pt-5 px-5">Confirmer la suppression</v-card-title>
         <v-card-text>
-          Supprimer <strong>{{ medicamentChoisi?.denomination }}</strong> définitivement ?
+          Supprimer <strong>{{ medicamentChoisi?.nom }}</strong> définitivement ?
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -118,7 +92,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- Notification -->
     <v-snackbar v-model="notifVisible" :color="notifCouleur" timeout="2200" location="bottom right">
       {{ notifTexte }}
     </v-snackbar>
@@ -129,7 +102,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { recupererTous, mettreAJour, effacer } from '@/Services/medicaments.js'
-import config from '@/config.js'
 
 const listeMedicaments = ref([])
 const recherche        = ref('')
@@ -140,17 +112,18 @@ const notifVisible     = ref(false)
 const notifTexte       = ref('')
 const notifCouleur     = ref('success')
 
-// Filtre la liste selon la recherche
 const listeFiltrée = computed(() => {
   if (!recherche.value) return listeMedicaments.value
   const terme = recherche.value.toLowerCase()
   return listeMedicaments.value.filter(m =>
-    (m.denomination || '').toLowerCase().includes(terme) ||
-    (m.formepharmaceutique || '').toLowerCase().includes(terme)
+    (m.nom || '').toLowerCase().includes(terme)
   )
 })
 
-// Charger tous les médicaments au démarrage
+function encoderUrl(url) {
+  return encodeURIComponent(url)
+}
+
 function chargerListe() {
   enChargement.value = true
   recupererTous()
@@ -159,27 +132,35 @@ function chargerListe() {
       enChargement.value     = false
     })
     .catch(err => {
-      console.error('Erreur chargement :', err)
+      console.error('Erreur :', err)
       enChargement.value = false
     })
 }
 
-// +1 au stock — ID dans le body JSON
 function ajouterUnite(med) {
-  mettreAJour({ id: med.id, qte: med.qte + 1 })
+  mettreAJour(med._links.self.href, {
+    nom:           med.nom,
+    unitesEnStock: med.unitesEnStock + 1,
+    imageURL:      med.imageURL,
+    prixUnitaire:  med.prixUnitaire
+  })
     .then(() => {
-      med.qte++
+      med.unitesEnStock++
       notifier('+1 enregistré ✓', 'success')
     })
     .catch(err => console.error(err))
 }
 
-// -1 au stock — ID dans le body JSON
 function enleverUnite(med) {
-  if (med.qte <= 0) return
-  mettreAJour({ id: med.id, qte: med.qte - 1 })
+  if (med.unitesEnStock <= 0) return
+  mettreAJour(med._links.self.href, {
+    nom:           med.nom,
+    unitesEnStock: med.unitesEnStock - 1,
+    imageURL:      med.imageURL,
+    prixUnitaire:  med.prixUnitaire
+  })
     .then(() => {
-      med.qte--
+      med.unitesEnStock--
       notifier('-1 enregistré ✓', 'success')
     })
     .catch(err => console.error(err))
@@ -191,12 +172,14 @@ function demanderSuppression(med) {
 }
 
 function validerSuppression() {
-  const id = medicamentChoisi.value.id
-  effacer(id)
+  const selfUrl = medicamentChoisi.value._links.self.href
+  effacer(selfUrl)
     .then(() => {
-      listeMedicaments.value = listeMedicaments.value.filter(m => m.id !== id)
-      dialogVisible.value    = false
-      notifier('Médicament supprimé ✓', 'success')
+      listeMedicaments.value = listeMedicaments.value.filter(
+        m => m._links.self.href !== selfUrl
+      )
+      dialogVisible.value = false
+      notifier('Supprimé ✓', 'success')
     })
     .catch(err => console.error(err))
 }
@@ -207,7 +190,5 @@ function notifier(texte, couleur) {
   notifVisible.value = true
 }
 
-onMounted(() => {
-  chargerListe()
-})
+onMounted(() => { chargerListe() })
 </script>
