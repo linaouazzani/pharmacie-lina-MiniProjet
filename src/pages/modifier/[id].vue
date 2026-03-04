@@ -23,16 +23,23 @@
       <v-text-field v-model="niveauDeReappro" label="Niveau de réapprovisionnement"
         variant="outlined" type="number" min="0" class="mb-3" />
 
-      <!-- URL manuelle OU photo depuis l'ordinateur -->
+      <!-- Image actuelle ou URL manuelle -->
       <v-text-field v-model="imageURL" label="URL de l'image"
         variant="outlined" class="mb-2" />
 
-      <div class="text-center text-grey mb-2">— ou —</div>
+      <p class="text-center text-grey text-caption mb-2">— ou sélectionner depuis le PC —</p>
 
-      <v-file-input label="Changer la photo depuis l'ordinateur"
-        variant="outlined" accept="image/*" prepend-icon="mdi-camera"
-        class="mb-3" @change="lirePhoto" />
+      <!-- Zone sélection image depuis le PC -->
+      <v-file-input
+        label="Choisir une image depuis le PC"
+        variant="outlined"
+        accept="image/*"
+        prepend-icon="mdi-camera"
+        class="mb-3"
+        @change="lirePhoto"
+      />
 
+      <!-- Aperçu image actuelle -->
       <v-img v-if="imageURL" :src="imageURL" height="120" contain class="rounded mb-3" />
 
       <v-alert v-if="messageErreur" type="error" variant="tonal" class="mb-3">
@@ -56,7 +63,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { recupererTous, mettreAJour } from '@/Services/medicaments.js'
 
 const route  = useRoute()
 const router = useRouter()
@@ -68,25 +74,28 @@ const quantiteParUnite = ref('')
 const unitesEnStock    = ref(0)
 const prixUnitaire     = ref(0)
 const niveauDeReappro  = ref(0)
+const unitesCommandees = ref(0)
+const indisponible     = ref(false)
 const imageURL         = ref('')
 const enChargement     = ref(true)
 const enEnvoi          = ref(false)
 const messageErreur    = ref('')
 const messageSucces    = ref('')
 
+// Charger directement le médicament via son URL self → pas besoin de chercher dans la liste
 function chargerMedicament() {
-  recupererTous()
-    .then(liste => {
-      const trouve = liste.find(m => m._links.self.href === selfUrl)
-      if (trouve) {
-        nom.value              = trouve.nom
-        quantiteParUnite.value = trouve.quantiteParUnite
-        unitesEnStock.value    = trouve.unitesEnStock
-        prixUnitaire.value     = trouve.prixUnitaire
-        niveauDeReappro.value  = trouve.niveauDeReappro
-        imageURL.value         = trouve.imageURL || ''
-      }
-      enChargement.value = false
+  fetch(selfUrl)
+    .then(r => r.json())
+    .then(med => {
+      nom.value              = med.nom              || ''
+      quantiteParUnite.value = med.quantiteParUnite || ''
+      unitesEnStock.value    = med.unitesEnStock    ?? 0
+      prixUnitaire.value     = med.prixUnitaire     ?? 0
+      niveauDeReappro.value  = med.niveauDeReappro  ?? 0
+      unitesCommandees.value = med.unitesCommandees ?? 0
+      indisponible.value     = med.indisponible     ?? false
+      imageURL.value         = med.imageURL         || ''
+      enChargement.value     = false
     })
     .catch(err => {
       console.error(err)
@@ -94,11 +103,12 @@ function chargerMedicament() {
     })
 }
 
+// Convertit la photo locale en Base64
 function lirePhoto(evenement) {
   const fichier = evenement.target.files[0]
   if (!fichier) return
   const lecteur = new FileReader()
-  lecteur.onload = () => { imageURL.value = lecteur.result }
+  lecteur.onload = (e) => { imageURL.value = e.target.result }
   lecteur.readAsDataURL(fichier)
 }
 
@@ -106,16 +116,25 @@ function enregistrer() {
   messageErreur.value = ''
   enEnvoi.value       = true
 
-  mettreAJour(selfUrl, {
-    nom:              nom.value,
-    quantiteParUnite: quantiteParUnite.value,
-    unitesEnStock:    parseInt(unitesEnStock.value),
-    prixUnitaire:     parseFloat(prixUnitaire.value),
-    niveauDeReappro:  parseInt(niveauDeReappro.value),
-    unitesCommandees: 0,
-    indisponible:     false,
-    imageURL:         imageURL.value || null
+  // On envoie TOUTES les infos pour ne rien perdre
+  fetch(selfUrl, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nom:              nom.value,
+      quantiteParUnite: quantiteParUnite.value,
+      unitesEnStock:    parseInt(unitesEnStock.value),
+      prixUnitaire:     parseFloat(prixUnitaire.value),
+      niveauDeReappro:  parseInt(niveauDeReappro.value),
+      unitesCommandees: parseInt(unitesCommandees.value),
+      indisponible:     indisponible.value,
+      imageURL:         imageURL.value || null
+    })
   })
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error(t) })
+      return r.json()
+    })
     .then(() => {
       messageSucces.value = 'Modifications enregistrées ! Retour...'
       enEnvoi.value       = false

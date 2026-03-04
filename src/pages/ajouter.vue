@@ -8,8 +8,7 @@
         variant="outlined" class="mb-3" />
 
       <v-text-field v-model="quantiteParUnite" label="Quantité par unité *"
-        variant="outlined" placeholder="Boîte de 16 comprimés"
-        class="mb-3" />
+        variant="outlined" placeholder="Boîte de 16 comprimés" class="mb-3" />
 
       <v-text-field v-model="unitesEnStock" label="Unités en stock *"
         variant="outlined" type="number" min="0" class="mb-3" />
@@ -20,7 +19,6 @@
       <v-text-field v-model="niveauDeReappro" label="Niveau de réapprovisionnement *"
         variant="outlined" type="number" min="0" class="mb-3" />
 
-      <!-- Catégorie chargée depuis l'API -->
       <v-select
         v-model="categorieUrl"
         :items="categories"
@@ -33,12 +31,21 @@
         no-data-text="Chargement des catégories..."
       />
 
-      <!-- URL image manuelle -->
       <v-text-field v-model="imageURL" label="URL de l'image (optionnel)"
         variant="outlined" placeholder="https://images.unsplash.com/..."
-        class="mb-3" />
+        class="mb-2" />
 
-      <!-- Aperçu image -->
+      <p class="text-center text-grey text-caption mb-2">— ou sélectionner depuis le PC —</p>
+
+      <v-file-input
+        label="Choisir une image depuis le PC"
+        variant="outlined"
+        accept="image/*"
+        prepend-icon="mdi-camera"
+        class="mb-3"
+        @change="lirePhoto"
+      />
+
       <v-img v-if="imageURL" :src="imageURL" height="140" contain class="rounded mb-4" />
 
       <v-alert v-if="erreur" type="error" variant="tonal" class="mb-3">
@@ -78,22 +85,25 @@ const chargement           = ref(false)
 const erreur               = ref('')
 const succes               = ref(false)
 
-// Charger les catégories depuis l'API au démarrage
 function chargerCategories() {
   fetch('https://mini-projetlina.onrender.com/api/categories')
     .then(r => r.json())
     .then(data => {
-      const liste = data._embedded?.categories ?? []
-      categories.value = liste.map(cat => ({
+      categories.value = (data._embedded?.categories ?? []).map(cat => ({
         libelle: cat.libelle,
         url:     cat._links.self.href
       }))
       chargementCategories.value = false
     })
-    .catch(err => {
-      console.error('Erreur catégories :', err)
-      chargementCategories.value = false
-    })
+    .catch(() => { chargementCategories.value = false })
+}
+
+function lirePhoto(evenement) {
+  const fichier = evenement.target.files[0]
+  if (!fichier) { imageURL.value = ''; return }
+  const lecteur = new FileReader()
+  lecteur.onload = (e) => { imageURL.value = e.target.result }
+  lecteur.readAsDataURL(fichier)
 }
 
 function envoyerFormulaire() {
@@ -101,11 +111,9 @@ function envoyerFormulaire() {
     erreur.value = 'Veuillez remplir tous les champs obligatoires (*).'
     return
   }
-
   erreur.value     = ''
   chargement.value = true
 
-  // ÉTAPE 1 : créer le médicament sans catégorie
   fetch(config.apiUrl, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -125,16 +133,14 @@ function envoyerFormulaire() {
       return r.json()
     })
     .then(medicamentCree => {
-      // ÉTAPE 2 : associer la catégorie via PUT text/uri-list
-      const selfUrl = medicamentCree._links.self.href
-      return fetch(selfUrl + '/categorie', {
+      return fetch(medicamentCree._links.self.href + '/categorie', {
         method:  'PUT',
         headers: { 'Content-Type': 'text/uri-list' },
         body:    categorieUrl.value
       })
     })
     .then(r => {
-      if (!r.ok) return r.text().then(t => { throw new Error('Catégorie: ' + t) })
+      if (!r.ok) return r.text().then(t => { throw new Error(t) })
       succes.value     = true
       chargement.value = false
       setTimeout(() => { router.push('/') }, 1500)
@@ -146,7 +152,5 @@ function envoyerFormulaire() {
     })
 }
 
-onMounted(() => {
-  chargerCategories()
-})
+onMounted(() => { chargerCategories() })
 </script>
