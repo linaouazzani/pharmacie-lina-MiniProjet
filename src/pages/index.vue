@@ -19,7 +19,7 @@
     </div>
 
     <div v-if="enChargement" class="text-center my-10">
-      <v-progress-circular indeterminate color="teal" size="50" />
+      <v-progress-circular indeterminate color="purple-darken-2" size="50" />
       <p class="text-grey mt-3">Chargement en cours...</p>
     </div>
 
@@ -42,18 +42,18 @@
 
           <p class="text-h6 font-weight-bold mb-1">{{ med.nom }}</p>
 
-          <p v-if="med.prixUnitaire" class="text-body-2 text-teal mb-3">
+          <p v-if="med.prixUnitaire" class="text-body-2 text-purple-darken-2 mb-3">
             {{ med.prixUnitaire }} €
           </p>
 
           <div class="d-flex align-center justify-center ga-4 mb-2">
-            <v-btn icon="mdi-minus" variant="tonal" size="small" color="teal"
+            <v-btn icon="mdi-minus" variant="tonal" size="small" color="purple-darken-2"
               :disabled="med.unitesEnStock <= 0" @click="enleverUnite(med)" />
             <div>
               <div class="text-h5 font-weight-bold">{{ med.unitesEnStock }}</div>
               <div class="text-caption text-grey">unités</div>
             </div>
-            <v-btn icon="mdi-plus" variant="tonal" size="small" color="teal"
+            <v-btn icon="mdi-plus" variant="tonal" size="small" color="purple-darken-2"
               @click="ajouterUnite(med)" />
           </div>
 
@@ -61,10 +61,10 @@
 
           <div class="d-flex justify-center ga-2">
             <v-btn :to="'/modifier/' + encoderUrl(med._links.self.href)"
-              color="teal" size="small" prepend-icon="mdi-pencil">
+              color="purple-darken-2" size="small" prepend-icon="mdi-pencil">
               Modifier
             </v-btn>
-            <v-btn color="teal" variant="outlined" size="small" prepend-icon="mdi-delete"
+            <v-btn color="purple-darken-2" variant="outlined" size="small" prepend-icon="mdi-delete"
               @click="demanderSuppression(med)">
               Supprimer
             </v-btn>
@@ -127,14 +127,12 @@ function encoderUrl(url) {
 function chargerListe() {
   enChargement.value = true
 
-  // Charger toutes les pages en suivant les liens HATEOAS
   function chargerPage(url, accumulateur) {
     return fetch(url)
       .then(r => r.json())
       .then(data => {
         const medicaments = data._embedded?.medicaments ?? []
         const tous = accumulateur.concat(medicaments)
-        // S'il y a une page suivante, on la charge aussi
         if (data._links?.next?.href) {
           return chargerPage(data._links.next.href, tous)
         }
@@ -162,7 +160,7 @@ function ajouterUnite(med) {
   })
     .then(() => {
       med.unitesEnStock++
-      notifier('+1 enregistré ✓', 'success')
+      notifier('+1 enregistre', 'success')
     })
     .catch(err => console.error(err))
 }
@@ -177,7 +175,7 @@ function enleverUnite(med) {
   })
     .then(() => {
       med.unitesEnStock--
-      notifier('-1 enregistré ✓', 'success')
+      notifier('-1 enregistre', 'success')
     })
     .catch(err => console.error(err))
 }
@@ -195,7 +193,7 @@ function validerSuppression() {
         m => m._links.self.href !== selfUrl
       )
       dialogVisible.value = false
-      notifier('Supprimé ✓', 'success')
+      notifier('Supprime', 'success')
     })
     .catch(err => console.error(err))
 }
