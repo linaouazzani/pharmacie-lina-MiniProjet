@@ -126,7 +126,23 @@ function encoderUrl(url) {
 
 function chargerListe() {
   enChargement.value = true
-  recupererTous()
+
+  // Charger toutes les pages en suivant les liens HATEOAS
+  function chargerPage(url, accumulateur) {
+    return fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        const medicaments = data._embedded?.medicaments ?? []
+        const tous = accumulateur.concat(medicaments)
+        // S'il y a une page suivante, on la charge aussi
+        if (data._links?.next?.href) {
+          return chargerPage(data._links.next.href, tous)
+        }
+        return tous
+      })
+  }
+
+  chargerPage('https://mini-projetlina.onrender.com/api/medicaments', [])
     .then(data => {
       listeMedicaments.value = data
       enChargement.value     = false

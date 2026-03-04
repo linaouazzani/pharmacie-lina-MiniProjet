@@ -1,194 +1,152 @@
 <template>
   <div>
-    <h2 class="text-h5 font-weight-bold text-center mb-6">
-      Liste des Médicaments
-    </h2>
+    <h2 class="text-h5 font-weight-bold mb-6">Ajouter un médicament</h2>
 
-    <div class="d-flex justify-center mb-8">
-      <v-text-field
-        v-model="recherche"
-        placeholder="Rechercher un médicament..."
-        prepend-inner-icon="mdi-magnify"
+    <v-card max-width="500" class="pa-6" elevation="2" rounded="lg">
+
+      <v-text-field v-model="nom" label="Nom *"
+        variant="outlined" class="mb-3" />
+
+      <v-text-field v-model="quantiteParUnite" label="Quantité par unité *"
+        variant="outlined" placeholder="Boîte de 16 comprimés"
+        class="mb-3" />
+
+      <v-text-field v-model="unitesEnStock" label="Unités en stock *"
+        variant="outlined" type="number" min="0" class="mb-3" />
+
+      <v-text-field v-model="prixUnitaire" label="Prix unitaire (€) *"
+        variant="outlined" type="number" step="0.01" class="mb-3" />
+
+      <v-text-field v-model="niveauDeReappro" label="Niveau de réapprovisionnement *"
+        variant="outlined" type="number" min="0" class="mb-3" />
+
+      <!-- Catégorie chargée depuis l'API -->
+      <v-select
+        v-model="categorieUrl"
+        :items="categories"
+        item-title="libelle"
+        item-value="url"
+        label="Catégorie *"
         variant="outlined"
-        hide-details
-        density="compact"
-        clearable
-        bg-color="white"
-        style="max-width: 450px"
+        class="mb-3"
+        :loading="chargementCategories"
+        no-data-text="Chargement des catégories..."
       />
-    </div>
 
-    <div v-if="enChargement" class="text-center my-10">
-      <v-progress-circular indeterminate color="teal" size="50" />
-      <p class="text-grey mt-3">Chargement en cours...</p>
-    </div>
+      <!-- URL image manuelle -->
+      <v-text-field v-model="imageURL" label="URL de l'image (optionnel)"
+        variant="outlined" placeholder="https://images.unsplash.com/..."
+        class="mb-3" />
 
-    <v-row v-if="!enChargement">
-      <v-col
-        v-for="med in listeFiltrée"
-        :key="med._links.self.href"
-        cols="12" sm="6" md="4"
-      >
-        <v-card rounded="lg" elevation="2" class="pa-4 text-center h-100">
+      <!-- Aperçu image -->
+      <v-img v-if="imageURL" :src="imageURL" height="140" contain class="rounded mb-4" />
 
-          <v-img
-            v-if="med.imageURL"
-            :src="med.imageURL"
-            height="120"
-            contain
-            class="mb-3"
-          />
-          <v-icon v-else icon="mdi-pill" size="70" color="grey-lighten-2" class="mb-3" />
+      <v-alert v-if="erreur" type="error" variant="tonal" class="mb-3">
+        {{ erreur }}
+      </v-alert>
+      <v-alert v-if="succes" type="success" variant="tonal" class="mb-3">
+        Médicament ajouté ! Retour à la liste...
+      </v-alert>
 
-          <p class="text-h6 font-weight-bold mb-1">{{ med.nom }}</p>
+      <div class="d-flex ga-3">
+        <v-btn color="teal" variant="flat" :loading="chargement" @click="envoyerFormulaire">
+          Enregistrer
+        </v-btn>
+        <v-btn to="/" variant="tonal">Annuler</v-btn>
+      </div>
 
-          <p v-if="med.prixUnitaire" class="text-body-2 text-teal mb-3">
-            {{ med.prixUnitaire }} €
-          </p>
-
-          <div class="d-flex align-center justify-center ga-4 mb-2">
-            <v-btn icon="mdi-minus" variant="tonal" size="small" color="teal"
-              :disabled="med.unitesEnStock <= 0" @click="enleverUnite(med)" />
-            <div>
-              <div class="text-h5 font-weight-bold">{{ med.unitesEnStock }}</div>
-              <div class="text-caption text-grey">unités</div>
-            </div>
-            <v-btn icon="mdi-plus" variant="tonal" size="small" color="teal"
-              @click="ajouterUnite(med)" />
-          </div>
-
-          <v-divider class="my-3" />
-
-          <div class="d-flex justify-center ga-2">
-            <v-btn :to="'/modifier/' + encoderUrl(med._links.self.href)"
-              color="teal" size="small" prepend-icon="mdi-pencil">
-              Modifier
-            </v-btn>
-            <v-btn color="teal" variant="outlined" size="small" prepend-icon="mdi-delete"
-              @click="demanderSuppression(med)">
-              Supprimer
-            </v-btn>
-          </div>
-
-        </v-card>
-      </v-col>
-
-      <v-col v-if="listeFiltrée.length === 0" cols="12" class="text-center text-grey py-10">
-        Aucun médicament trouvé.
-      </v-col>
-    </v-row>
-
-    <v-dialog v-model="dialogVisible" max-width="380">
-      <v-card rounded="lg">
-        <v-card-title class="pt-5 px-5">Confirmer la suppression</v-card-title>
-        <v-card-text>
-          Supprimer <strong>{{ medicamentChoisi?.nom }}</strong> définitivement ?
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="dialogVisible = false">Annuler</v-btn>
-          <v-btn color="red" variant="flat" @click="validerSuppression">Supprimer</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-snackbar v-model="notifVisible" :color="notifCouleur" timeout="2200" location="bottom right">
-      {{ notifTexte }}
-    </v-snackbar>
-
+    </v-card>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { recupererTous, mettreAJour, effacer } from '@/services/medicaments.js'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import config from '@/config.js'
 
-const listeMedicaments = ref([])
-const recherche        = ref('')
-const enChargement     = ref(true)
-const dialogVisible    = ref(false)
-const medicamentChoisi = ref(null)
-const notifVisible     = ref(false)
-const notifTexte       = ref('')
-const notifCouleur     = ref('success')
+const router               = useRouter()
+const nom                  = ref('')
+const quantiteParUnite     = ref('')
+const unitesEnStock        = ref(0)
+const prixUnitaire         = ref(0)
+const niveauDeReappro      = ref(10)
+const imageURL             = ref('')
+const categorieUrl         = ref('')
+const categories           = ref([])
+const chargementCategories = ref(true)
+const chargement           = ref(false)
+const erreur               = ref('')
+const succes               = ref(false)
 
-const listeFiltrée = computed(() => {
-  if (!recherche.value) return listeMedicaments.value
-  const terme = recherche.value.toLowerCase()
-  return listeMedicaments.value.filter(m =>
-    (m.nom || '').toLowerCase().includes(terme)
-  )
-})
-
-function encoderUrl(url) {
-  return encodeURIComponent(url)
-}
-
-function chargerListe() {
-  enChargement.value = true
-  recupererTous()
+// Charger les catégories depuis l'API au démarrage
+function chargerCategories() {
+  fetch('https://mini-projetlina.onrender.com/api/categories')
+    .then(r => r.json())
     .then(data => {
-      listeMedicaments.value = data
-      enChargement.value     = false
+      const liste = data._embedded?.categories ?? []
+      categories.value = liste.map(cat => ({
+        libelle: cat.libelle,
+        url:     cat._links.self.href
+      }))
+      chargementCategories.value = false
     })
     .catch(err => {
-      console.error('Erreur :', err)
-      enChargement.value = false
+      console.error('Erreur catégories :', err)
+      chargementCategories.value = false
     })
 }
 
-function ajouterUnite(med) {
-  mettreAJour(med._links.self.href, {
-    nom:           med.nom,
-    unitesEnStock: med.unitesEnStock + 1,
-    imageURL:      med.imageURL,
-    prixUnitaire:  med.prixUnitaire
+function envoyerFormulaire() {
+  if (!nom.value || !quantiteParUnite.value || !categorieUrl.value) {
+    erreur.value = 'Veuillez remplir tous les champs obligatoires (*).'
+    return
+  }
+
+  erreur.value     = ''
+  chargement.value = true
+
+  // ÉTAPE 1 : créer le médicament sans catégorie
+  fetch(config.apiUrl, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nom:              nom.value,
+      quantiteParUnite: quantiteParUnite.value,
+      prixUnitaire:     parseFloat(prixUnitaire.value),
+      unitesEnStock:    parseInt(unitesEnStock.value),
+      unitesCommandees: 0,
+      niveauDeReappro:  parseInt(niveauDeReappro.value),
+      indisponible:     false,
+      imageURL:         imageURL.value || null
+    })
   })
-    .then(() => {
-      med.unitesEnStock++
-      notifier('+1 enregistré ✓', 'success')
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error(t) })
+      return r.json()
     })
-    .catch(err => console.error(err))
-}
-
-function enleverUnite(med) {
-  if (med.unitesEnStock <= 0) return
-  mettreAJour(med._links.self.href, {
-    nom:           med.nom,
-    unitesEnStock: med.unitesEnStock - 1,
-    imageURL:      med.imageURL,
-    prixUnitaire:  med.prixUnitaire
-  })
-    .then(() => {
-      med.unitesEnStock--
-      notifier('-1 enregistré ✓', 'success')
+    .then(medicamentCree => {
+      // ÉTAPE 2 : associer la catégorie via PUT text/uri-list
+      const selfUrl = medicamentCree._links.self.href
+      return fetch(selfUrl + '/categorie', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'text/uri-list' },
+        body:    categorieUrl.value
+      })
     })
-    .catch(err => console.error(err))
-}
-
-function demanderSuppression(med) {
-  medicamentChoisi.value = med
-  dialogVisible.value    = true
-}
-
-function validerSuppression() {
-  const selfUrl = medicamentChoisi.value._links.self.href
-  effacer(selfUrl)
-    .then(() => {
-      listeMedicaments.value = listeMedicaments.value.filter(
-        m => m._links.self.href !== selfUrl
-      )
-      dialogVisible.value = false
-      notifier('Supprimé ✓', 'success')
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error('Catégorie: ' + t) })
+      succes.value     = true
+      chargement.value = false
+      setTimeout(() => { router.push('/') }, 1500)
     })
-    .catch(err => console.error(err))
+    .catch(err => {
+      console.error('Erreur :', err.message)
+      erreur.value     = err.message || "Erreur lors de l'ajout."
+      chargement.value = false
+    })
 }
 
-function notifier(texte, couleur) {
-  notifTexte.value   = texte
-  notifCouleur.value = couleur
-  notifVisible.value = true
-}
-
-onMounted(() => { chargerListe() })
+onMounted(() => {
+  chargerCategories()
+})
 </script>
