@@ -142,7 +142,8 @@ function chargerListe() {
 
   chargerPage('https://mini-projetlina.onrender.com/api/medicaments', [])
     .then(data => {
-      listeMedicaments.value = data
+      // Tri alphabétique par nom
+      listeMedicaments.value = data.sort((a, b) => a.nom.localeCompare(b.nom))
       enChargement.value     = false
     })
     .catch(err => {
